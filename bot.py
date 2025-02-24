@@ -1,51 +1,20 @@
-import requests
 import asyncio
-from aiogram import Bot, Dispatcher
-from aiogram.types import ParseMode
+from aiogram import Bot
 
-# Токен бота и ID канала
+# Вставь свои данные
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
-TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или -100XXXXXXXXXX для приватного канала
+TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Если канал приватный, вставь его ID в формате "-100XXXXXXXXXX"
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dp = Dispatcher(bot)
 
-# Функция получения скидок из Steam API
-def get_steam_deals():
-    url = "https://store.steampowered.com/api/featuredcategories/"
-    response = requests.get(url)
+async def send_test_message():
+    try:
+        await bot.send_message(TELEGRAM_CHANNEL_ID, "✅ Тестовый пост! Бот работает!")
+        print("✅ Сообщение успешно отправлено!")
+    except Exception as e:
+        print(f"❌ Ошибка при отправке сообщения: {e}")
 
-    if response.status_code == 200:
-        data = response.json()
-        deals = []
-
-        for game in data["specials"]["items"]:
-            if "price_overview" in game:
-                discount = game["price_overview"]["discount_percent"]
-                if discount >= 50:  # Фильтруем скидки от 50%
-                    name = game["name"]
-                    price_old = game["price_overview"]["initial"] / 100
-                    price_new = game["price_overview"]["final"] / 100
-                    link = f"https://store.steampowered.com/app/{game['id']}/"
-
-                    deals.append(f"🎮 **{name}**\n🔥 -{discount}%\n💰 {price_old}€ → {price_new}€\n🔗 [Купить в Steam]({link})")
-            
-            if len(deals) >= 5:  # Ограничиваем 5 скидками
-                break
-        
-        return deals
-    else:
-        return ["❌ Ошибка при получении данных из Steam."]
-
-# Функция отправки тестового поста
-async def send_test_post():
-    deals = get_steam_deals()
-    if deals:
-        await bot.send_message(TELEGRAM_CHANNEL_ID, "🎮 🔥 Тестовый пост со скидками! 🔥\n\n" + deals[0], parse_mode=ParseMode.MARKDOWN)
-
-# Запуск бота
 async def main():
-    await send_test_post()  # Отправляем тестовый пост
-    print("✅ Тестовый пост отправлен!")
+    await send_test_message()
 
 asyncio.run(main())
