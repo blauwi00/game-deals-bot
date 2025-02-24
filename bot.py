@@ -64,9 +64,9 @@ async def post_deals():
 # Запуск планировщика
 async def test_message():
     async def scheduler():
-    while True:
-        await post_deals()
-        await asyncio.sleep(86400)  # Запускаем каждый день
+        while True:
+            await post_deals()
+            await asyncio.sleep(86400)  # Запускаем каждый день
 
 # Запуск бота
 async def main():
