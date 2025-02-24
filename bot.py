@@ -2,6 +2,7 @@ import requests
 import asyncio
 from aiogram import Bot
 from datetime import datetime
+import json
 
 # Данные бота
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
@@ -16,11 +17,15 @@ def get_steam_deals():
 
     if response.status_code == 200:
         data = response.json()
-        print("✅ Steam API ответило успешно!")  # Проверяем, получаем ли данные
+        print("✅ Steam API ответило успешно!")
+        
+        # Логируем полный ответ от Steam API
+        print("📡 Полный ответ API Steam:")
+        print(json.dumps(data, indent=4, ensure_ascii=False))  # Выводим красиво
 
         try:
             specials = data.get("specials", {}).get("items", [])
-            print(f"🛒 Найдено {len(specials)} товаров в разделе скидок.")  # Проверяем, сколько игр со скидками
+            print(f"🛒 Найдено {len(specials)} товаров в разделе скидок.")
 
             deals = []
             for game in specials:
