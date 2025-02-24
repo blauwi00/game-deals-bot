@@ -1,5 +1,7 @@
 import requests
 import asyncio
+import json
+import os
 from aiogram import Bot
 from datetime import datetime
 
@@ -8,6 +10,21 @@ TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+# Файл для хранения старых скидок
+DISCOUNTS_FILE = "discounts.json"
+
+# Функция загрузки старых скидок
+def load_old_discounts():
+    if os.path.exists(DISCOUNTS_FILE):
+        with open(DISCOUNTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+# Функция сохранения новых скидок
+def save_discounts(discounts):
+    with open(DISCOUNTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(discounts, f, ensure_ascii=False, indent=4)
 
 # Функция получения скидок из Steam API
 def get_steam_deals():
@@ -19,11 +36,14 @@ def get_steam_deals():
         specials = data.get("specials", {}).get("items", [])
         print(f"🛒 Найдено {len(specials)} товаров в разделе скидок.")
 
+        old_discounts = load_old_discounts()
+        new_discounts = {}
         deals = []
+
         for game in specials:
-            if game.get("discounted", False):  # Проверяем, есть ли скидка
+            if game.get("discounted", False):
                 discount = game.get("discount_percent", 0)
-                if discount > 0:  # Теперь учитываем любые скидки
+                if discount > 0:  # Любая скидка
                     name = game.get("name", "Без названия")
                     price_old = game.get("original_price", 0) / 100
                     price_new = game.get("final_price", 0) / 100
@@ -31,12 +51,27 @@ def get_steam_deals():
                     link = f"https://store.steampowered.com/app/{game['id']}/"
                     image = game.get("header_image", "")
 
-                    deals.append(f"🎮 **{name}**\n🔥 -{discount}%\n💰 {price_old} {currency} → {price_new} {currency}\n🔗 [Купить в Steam]({link})\n🖼 {image}")
+                    # Проверяем, изменилась ли скидка
+                    previous_discount = old_discounts.get(str(game["id"]), None)
+                    discount_text = f"🔥 -{discount}%"
+                    if previous_discount and previous_discount != discount:
+                        discount_text += f" (Ранее было -{previous_discount}%)"
 
-            if len(deals) >= 10:  # Теперь отправляем 10 игр в одном посте
+                    new_discounts[str(game["id"])] = discount  # Сохраняем текущую скидку
+
+                    deals.append(
+                        f"🖼 <a href='{image}'>🎮 {name}</a>\n"
+                        f"{discount_text}\n"
+                        f"💰 {price_old} {currency} → {price_new} {currency}\n"
+                        f"🔗 <a href='{link}'>Купить в Steam</a>"
+                    )
+
+            if len(deals) >= 5:  # Показываем 5 игр
                 break
 
-        print(f"📌 Итог: {len(deals)} игр прошло фильтр.")  # Показываем, сколько игр бот реально отправит
+        save_discounts(new_discounts)  # Сохраняем скидки
+        print(f"📌 Итог: {len(deals)} игр прошло фильтр.")  
+
         return deals if deals else ["❌ Скидок нет или API Steam не даёт данные."]
     
     else:
@@ -49,13 +84,21 @@ async def send_discount_post():
     if deals:
         now = datetime.now().strftime("%H:%M")  # Добавляем текущее время в пост
         message = f"🕒 Время поста: {now}\n\n🎮 🔥 Горячие скидки в Steam! 🔥\n\n"
-        message += "\n\n".join(deals)  # Объединяем 10 скидок в один пост
-        await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="Markdown")
+        message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
+        message += "\n\n🖼 <b>Постер</b> — <a href='URL_КАРТИНКИ'>GameHunt</a> 🎮"  # Ссылка на картинку
+
+        await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=False)
     else:
         print("❌ Нет скидок для отправки!")
 
-# Запуск бота (только 1 раз!)
+# Функция тестового запуска (2 поста, затем стоп)
+async def test_run():
+    for _ in range(2):  # Отправит 2 поста и остановится
+        await send_discount_post()
+        await asyncio.sleep(10)  # Ждём 10 секунд перед следующим постом (для тестов)
+
+# Запуск бота (только на 2 поста)
 async def main():
-    await send_discount_post()  # Отправляем пост со скидками и больше не спамим
+    await test_run()
 
 asyncio.run(main())
