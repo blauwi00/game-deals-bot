@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import ParseMode
 
 # Токен бота и ID канала
-TELEGRAM_BOT_TOKEN = "7934109371:AAHw7h2oDtcQFGmFdr3ddMlKTgolNXYkkEI"
+TELEGRAM_BOT_TOKEN = "7934109371:AAFFYbz1eFHzKAANo_60YInoCwlLY-wQUrU"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или -100XXXXXXXXXX для приватного канала
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
