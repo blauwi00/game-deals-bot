@@ -6,8 +6,8 @@ from aiogram.types import ParseMode
 from datetime import datetime, timedelta
 
 # Токен бота и ID канала
-TELEGRAM_BOT_TOKEN = "ТВОЙ_ТОКЕН_БОТА"
-TELEGRAM_CHANNEL_ID = "@ТВОЙ_КАНАЛ"
+TELEGRAM_BOT_TOKEN = "7934109371:AAFFYbz1eFHzKAANo_60YInoCwlLY-wQUrU"
+TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher(bot)
