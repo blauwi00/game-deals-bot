@@ -39,7 +39,9 @@ def get_steam_deals():
     else:
         return ["❌ Ошибка при получении данных из Steam."]
 
-# Функция для отложенного постинга скидок
+async def test_message():
+    await bot.send_message(TELEGRAM_CHANNEL_ID, "✅ Бот работает!")
+# Функция для отложенного постинга скидок 
 async def post_deals():
     deals = get_steam_deals()
     if not deals:
@@ -60,7 +62,8 @@ async def post_deals():
         await asyncio.sleep(5)  # Задержка между постами, чтобы Telegram не забанил
 
 # Запуск планировщика
-async def scheduler():
+async def test_message():
+    async def scheduler():
     while True:
         await post_deals()
         await asyncio.sleep(86400)  # Запускаем каждый день
