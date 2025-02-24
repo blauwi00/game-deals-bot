@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot
 from datetime import datetime
 
-# Твои данные
+# Данные бота
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
 
@@ -36,8 +36,8 @@ def get_steam_deals():
     else:
         return ["❌ Ошибка при получении данных из Steam."]
 
-# Функция отправки тестового поста
-async def send_test_post():
+# Функция отправки поста со скидками
+async def send_discount_post():
     deals = get_steam_deals()
     if deals:
         now = datetime.now().strftime("%H:%M")  # Добавляем текущее время в пост
@@ -47,6 +47,6 @@ async def send_test_post():
 
 # Запуск бота
 async def main():
-    await send_test_post()  # Отправляем тестовый пост
+    await send_discount_post()  # Отправляем пост со скидками
 
 asyncio.run(main())
