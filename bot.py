@@ -18,10 +18,6 @@ def get_steam_deals():
     if response.status_code == 200:
         data = response.json()
         print("✅ Steam API ответило успешно!")
-        
-        # Логируем полный ответ от Steam API
-        print("📡 Полный ответ API Steam:")
-        print(json.dumps(data, indent=4, ensure_ascii=False))  # Выводим красиво
 
         try:
             specials = data.get("specials", {}).get("items", [])
@@ -29,12 +25,12 @@ def get_steam_deals():
 
             deals = []
             for game in specials:
-                if "price_overview" in game:
-                    discount = game["price_overview"]["discount_percent"]
+                if game.get("discounted", False):  # Проверяем, есть ли скидка
+                    discount = game.get("discount_percent", 0)
                     if discount >= 50:  # Фильтруем скидки от 50%
-                        name = game["name"]
-                        price_old = game["price_overview"]["initial"] / 100
-                        price_new = game["price_overview"]["final"] / 100
+                        name = game.get("name", "Без названия")
+                        price_old = game.get("original_price", 0) / 100
+                        price_new = game.get("final_price", 0) / 100
                         link = f"https://store.steampowered.com/app/{game['id']}/"
 
                         deals.append(f"🎮 **{name}**\n🔥 -{discount}%\n💰 {price_old}€ → {price_new}€\n🔗 [Купить в Steam]({link})")
