@@ -1,58 +1,61 @@
-import aiohttp
-import httpx
-import requests
 import asyncio
-import logging
-import random
-from aiogram import Bot
+import httpx
+import os
+from aiogram import Bot, Dispatcher
+from aiogram.types import ParseMode
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
+TOKEN = "ТВОЙ_ТОКЕН"
+TELEGRAM_CHANNEL_ID = "@gamehunttm"
+POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Ссылка на постер
 
-# Steam API URL (получаем список всех игр со скидками)
-STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher()
 
-# Функция получения всех скидок с резервными библиотеками
+# Храним старые скидки, чтобы отслеживать изменения
+previous_deals = {}
+
+# Функция для получения всех скидок со Steam
 async def fetch_all_discounts():
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(STEAM_API_URL, timeout=10) as response:
-                response.raise_for_status()
-                return await response.json()
-    except aiohttp.ClientError as e:
-        logging.warning(f"❌ `aiohttp` не сработал: {e}")
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(STEAM_API_URL, timeout=10)
-            response.raise_for_status()
+    url = "https://store.steampowered.com/api/featuredcategories/"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        if response.status_code == 200:
             return response.json()
-    except httpx.HTTPError as e:
-        logging.warning(f"❌ `httpx` не сработал: {e}")
+        else:
+            print(f"Ошибка Steam API: Код {response.status_code}")
+            return None
 
-    try:
-        response = requests.get(STEAM_API_URL, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        logging.error(f"❌ `requests` тоже не сработал: {e}")
-
-    return None  # Если вообще ничего не сработало
-
-# Функция обработки всех скидок
+# Функция обработки скидок и фильтрации уникальных игр
 async def process_all_discounts():
+    global previous_deals
     data = await fetch_all_discounts()
     if not data:
         return "🚫 Ошибка при получении скидок из Steam."
 
     all_discounts = []
     for deal in data.get("specials", {}).get("items", []):
-        if deal.get("discount_percent", 0) > 0:  # Если есть скидка
+        if deal.get("discount_percent", 0) > 0:  # Проверяем, есть ли скидка
+            game_id = deal.get("id")
+            current_discount = deal.get("discount_percent", 0)
+
+            # Проверяем, была ли уже эта игра и изменилась ли скидка
+            if game_id in previous_deals:
+                old_discount = previous_deals[game_id]
+                if current_discount == old_discount:
+                    continue  # Пропускаем повторяющиеся скидки
+                discount_change = f" (раньше было {old_discount}%)"
+            else:
+                discount_change = ""
+
+            # Обновляем данные о скидке
+            previous_deals[game_id] = current_discount
+
+            link = deal.get('link', 'https://store.steampowered.com/')  # Безопасный доступ, дефолтная ссылка
             all_discounts.append(
                 f"🎮 <b>{deal['name']}</b>\n"
-                f"💰 <s>{deal['original_price']}</s> ➡️ {deal['final_price']} {deal['currency']}\n"
-                f"🔥 Скидка: {deal['discount_percent']}%\n"
-                f"🔗 <a href='{deal['link']}'>Купить в Steam</a>\n"
+                f"💰 <s>{deal.get('original_price', '???')}</s> ➡️ {deal.get('final_price', '???')} {deal.get('currency', '')}\n"
+                f"🔥 Скидка: {current_discount}%{discount_change}\n"
+                f"🔗 <a href='{link}'>Купить в Steam</a>\n"
             )
 
     if not all_discounts:
@@ -60,33 +63,31 @@ async def process_all_discounts():
 
     return all_discounts  # Возвращаем ВСЕ скидки
 
-# Функция выбора случайных 5 игр
-async def get_random_discounts():
-    all_discounts = await process_all_discounts()
-    if isinstance(all_discounts, str):  # Ошибка
-        return all_discounts
+# Функция отправки поста со скидками и постером
+async def send_discount_post():
+    discounts = await process_all_discounts()
+    if isinstance(discounts, str):
+        await bot.send_message(TELEGRAM_CHANNEL_ID, discounts)
+        return
 
-    random_discounts = random.sample(all_discounts, min(5, len(all_discounts)))  # Выбираем 5 случайных игр
-    return "\n".join(random_discounts)
+    message = "<b>🔥 Горячие скидки в Steam!</b>\n\n"
+    message += "\n".join(discounts[:5])  # Ограничение 5 играми
 
-# Функция отправки поста в Telegram
-async def send_discount_post(bot, chat_id):
-    message = await get_random_discounts()
-    post_image = "https://i.imgur.com/AhzG3kO.jpeg"
-    await bot.send_photo(chat_id, post_image, caption=message, parse_mode="HTML")
+    # Отправляем сообщение с постером
+    await bot.send_photo(TELEGRAM_CHANNEL_ID, POSTER_URL, caption=message)
 
-# Основная функция (2 поста на тест)
-async def test_run(bot, chat_id):
-    for _ in range(2):  # Только для тестов
-        await send_discount_post(bot, chat_id)
+# Тестовая функция для проверки работы (отправляет 2 поста, затем стоп)
+async def test_run():
+    for _ in range(2):  # Отправит 2 поста и остановится
+        await send_discount_post()
         await asyncio.sleep(10)
 
-# Запуск бота
+# Основной цикл бота
 async def main():
-    TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
-    TELEGRAM_CHANNEL_ID = "@gamehunttm"
-
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    await test_run(bot, TELEGRAM_CHANNEL_ID)
+    await test_run()  # Временно тестовый запуск
+    # Раскомментировать ниже для постоянной работы:
+    # while True:
+    #     await send_discount_post()
+    #     await asyncio.sleep(86400)  # Раз в день
 
 asyncio.run(main())
