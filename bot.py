@@ -1,93 +1,93 @@
 import asyncio
-import httpx
-import os
+import logging
+import random
+import aiohttp
+from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import ParseMode
 
-TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
+# 🔹 Задаём параметры бота
+TOKEN = "ТВОЙ_ТОКЕН_ТУТ"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
-POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Ссылка на постер
+STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
+POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Твой постер
 
+# 🔹 Логирование (для отладки)
+logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(bot=bot)
+dp = Dispatcher(bot)
 
-# Храним старые скидки, чтобы отслеживать изменения
-previous_deals = {}
+# 🔹 Функция для получения всех скидок из Steam
+async def fetch_discounts():
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(STEAM_API_URL) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    games = []
 
-# Функция для получения всех скидок со Steam
-async def fetch_all_discounts():
-    url = "https://store.steampowered.com/api/featuredcategories/"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Ошибка Steam API: Код {response.status_code}")
-            return None
+                    # Проходим по всем категориям скидок
+                    for category in data.get("specials", {}).get("items", []):
+                        if category.get("discounted", False):
+                            game = {
+                                "name": category["name"],
+                                "original_price": category["original_price"] / 100 if category.get("original_price") else None,
+                                "final_price": category["final_price"] / 100 if category.get("final_price") else None,
+                                "discount": category["discount_percent"],
+                                "link": f"https://store.steampowered.com/app/{category['id']}",
+                                "image": category.get("header_image", ""),
+                            }
+                            games.append(game)
 
-# Функция обработки скидок и фильтрации уникальных игр
-async def process_all_discounts():
-    global previous_deals
-    data = await fetch_all_discounts()
-    if not data:
-        return "🚫 Ошибка при получении скидок из Steam."
+                    return games
+                else:
+                    logging.error(f"Ошибка Steam API: Код {response.status}")
+                    return []
+        except Exception as e:
+            logging.error(f"Ошибка при получении данных: {e}")
+            return []
 
-    all_discounts = []
-    for deal in data.get("specials", {}).get("items", []):
-        if deal.get("discount_percent", 0) > 0:  # Проверяем, есть ли скидка
-            game_id = deal.get("id")
-            current_discount = deal.get("discount_percent", 0)
-
-            # Проверяем, была ли уже эта игра и изменилась ли скидка
-            if game_id in previous_deals:
-                old_discount = previous_deals[game_id]
-                if current_discount == old_discount:
-                    continue  # Пропускаем повторяющиеся скидки
-                discount_change = f" (раньше было {old_discount}%)"
-            else:
-                discount_change = ""
-
-            # Обновляем данные о скидке
-            previous_deals[game_id] = current_discount
-
-            link = deal.get('link', 'https://store.steampowered.com/')  # Безопасный доступ, дефолтная ссылка
-            all_discounts.append(
-                f"🎮 <b>{deal['name']}</b>\n"
-                f"💰 <s>{deal.get('original_price', '???')}</s> ➡️ {deal.get('final_price', '???')} {deal.get('currency', '')}\n"
-                f"🔥 Скидка: {current_discount}%{discount_change}\n"
-                f"🔗 <a href='{link}'>Купить в Steam</a>\n"
-            )
-
+# 🔹 Фильтруем и выбираем случайные скидки
+async def get_random_discounts():
+    all_discounts = await fetch_discounts()
     if not all_discounts:
-        return "🚫 Нет актуальных скидок."
+        return None
+    
+    random.shuffle(all_discounts)  # Перемешиваем список
+    return all_discounts[:5]  # Берём 5 случайных скидок
 
-    return all_discounts  # Возвращаем ВСЕ скидки
-
-# Функция отправки поста со скидками и постером
+# 🔹 Функция для отправки поста
 async def send_discount_post():
-    discounts = await process_all_discounts()
-    if isinstance(discounts, str):
-        await bot.send_message(TELEGRAM_CHANNEL_ID, discounts)
+    discounts = await get_random_discounts()
+    
+    if not discounts:
+        await bot.send_message(TELEGRAM_CHANNEL_ID, "🚫 Нет актуальных скидок.")
         return
 
-    message = "<b>🔥 Горячие скидки в Steam!</b>\n\n"
-    message += "\n".join(discounts[:5])  # Ограничение 5 играми
+    # Формируем текст поста
+    message = "<b>🔥 Горящие скидки в Steam!</b>\n\n"
+    for deal in discounts:
+        message += (
+            f"🎮 <b>{deal['name']}</b>\n"
+            f"💰 <s>{deal['original_price']:.2f} USD</s> ➡️ {deal['final_price']:.2f} USD\n"
+            f"🔥 Скидка: {deal['discount']}%\n"
+            f"🔗 <a href='{deal['link']}'>Купить в Steam</a>\n\n"
+        )
 
-    # Отправляем сообщение с постером
+    message += "📌 Подписывайся, чтобы не пропустить новые скидки!"
+
+    # Отправляем пост с картинкой-постером
     await bot.send_photo(TELEGRAM_CHANNEL_ID, POSTER_URL, caption=message)
 
-# Тестовая функция для проверки работы (отправляет 2 поста, затем стоп)
-async def test_run():
-    for _ in range(2):  # Отправит 2 поста и остановится
+# 🔹 Функция запуска бота по расписанию (раз в 30 минут)
+async def schedule_posts():
+    while True:
         await send_discount_post()
-        await asyncio.sleep(10)
+        await asyncio.sleep(1800)  # 1800 секунд = 30 минут
 
-# Основной цикл бота
+# 🔹 Запуск бота
 async def main():
-    await test_run()  # Временно тестовый запуск
-    # Раскомментировать ниже для постоянной работы:
-    # while True:
-    #     await send_discount_post()
-    #     await asyncio.sleep(86400)  # Раз в день
+    asyncio.create_task(schedule_posts())
+    await asyncio.sleep(9999999)  # Держим бота активным
 
 asyncio.run(main())
