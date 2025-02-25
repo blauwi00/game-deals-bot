@@ -1,8 +1,9 @@
+
 import requests
 import asyncio
 import json
 import os
-from aiogram import Bot
+from aiogram import Bot, types
 from datetime import datetime
 
 # Данные бота
@@ -78,19 +79,16 @@ def get_steam_deals():
         print(f"Ошибка Steam API: Код {response.status_code}")
         return ["Ошибка при получении данных из Steam."]
 
-# Функция отправки поста со скидками + постера
+# Функция отправки поста с картинкой
 async def send_discount_post():
     deals = get_steam_deals()
     if deals:
         now = datetime.now().strftime("%H:%M")  # Добавляем текущее время в пост
-        message = f"Время поста: {now}\n\nГорячие скидки в Steam!\n\n"
+        message = f"Время поста: {now}\n\n🔥 Горячие скидки в Steam!\n\n"
         message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
 
-        # Отправляем пост со скидками (ОТКЛЮЧЕН предпросмотр ссылок)
-        await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=True)
-
-        # Отправляем постер как отдельное изображение
-        await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL)
+        # Отправляем пост со скидками + постером
+        await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL, caption=message, parse_mode="HTML")
     else:
         print("Нет скидок для отправки!")
 
