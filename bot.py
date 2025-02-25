@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # 🔹 Токен бота и канал
-TOKEN = "ТВОЙ_ТОКЕН_ТУТ"
+TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 # 🔹 Региональные коды валют
