@@ -2,4 +2,3 @@ aiogram==2.23.1
 httpx
 requests
 schedule
-pip install aiogram httpx pytz
