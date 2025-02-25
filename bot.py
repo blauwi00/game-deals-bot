@@ -8,6 +8,7 @@ from datetime import datetime
 # Данные бота
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
+POSTER_URL = "URL_ТВОЕГО_ПОСТЕРА"  # Заменить на ссылку на постер
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -34,7 +35,7 @@ def get_steam_deals():
     if response.status_code == 200:
         data = response.json()
         specials = data.get("specials", {}).get("items", [])
-        print(f"🛒 Найдено {len(specials)} товаров в разделе скидок.")
+        print(f"Найдено {len(specials)} товаров в разделе скидок.")
 
         old_discounts = load_old_discounts()
         new_discounts = {}
@@ -53,43 +54,45 @@ def get_steam_deals():
 
                     # Проверяем, изменилась ли скидка
                     previous_discount = old_discounts.get(str(game["id"]), None)
-                    discount_text = f"🔥 -{discount}%"
+                    discount_text = f"-{discount}%"
                     if previous_discount and previous_discount != discount:
                         discount_text += f" (Ранее было -{previous_discount}%)"
 
                     new_discounts[str(game["id"])] = discount  # Сохраняем текущую скидку
 
                     deals.append(
-                        f"🖼 <a href='{image}'>🎮 {name}</a>\n"
+                        f"<a href='{image}'>{name}</a>\n"
                         f"{discount_text}\n"
-                        f"💰 {price_old} {currency} → {price_new} {currency}\n"
-                        f"🔗 <a href='{link}'>Купить в Steam</a>"
+                        f"{price_old} {currency} → {price_new} {currency}\n"
+                        f"<a href='{link}'>Купить в Steam</a>"
                     )
 
             if len(deals) >= 5:  # Показываем 5 игр
                 break
 
         save_discounts(new_discounts)  # Сохраняем скидки
-        print(f"📌 Итог: {len(deals)} игр прошло фильтр.")  
+        print(f"Итог: {len(deals)} игр прошло фильтр.")  
 
-        return deals if deals else ["❌ Скидок нет или API Steam не даёт данные."]
+        return deals if deals else ["Скидок нет или API Steam не даёт данные."]
     
     else:
-        print(f"❌ Ошибка Steam API: Код {response.status_code}")
-        return ["❌ Ошибка при получении данных из Steam."]
+        print(f"Ошибка Steam API: Код {response.status_code}")
+        return ["Ошибка при получении данных из Steam."]
 
 # Функция отправки поста со скидками
 async def send_discount_post():
     deals = get_steam_deals()
     if deals:
         now = datetime.now().strftime("%H:%M")  # Добавляем текущее время в пост
-        message = f"🕒 Время поста: {now}\n\n🎮 🔥 Горячие скидки в Steam! 🔥\n\n"
+        message = f"Время поста: {now}\n\nГорячие скидки в Steam!\n\n"
         message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
-        message += "\n\n🖼 <b>Постер</b> — <a href='URL_КАРТИНКИ'>GameHunt</a> 🎮"  # Ссылка на картинку
+
+        # Добавляем постер в конце
+        message += f"\n\n<a href='{POSTER_URL}'></a>"
 
         await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=False)
     else:
-        print("❌ Нет скидок для отправки!")
+        print("Нет скидок для отправки!")
 
 # Функция тестового запуска (2 поста, затем стоп)
 async def test_run():
