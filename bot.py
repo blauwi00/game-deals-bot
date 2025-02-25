@@ -6,7 +6,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import ParseMode
 
 # Твой Telegram-бот
-TOKEN = "ТВОЙ_ТОКЕН"
+TOKEN = "
+7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 # Список отправленных игр
@@ -97,7 +98,7 @@ async def send_discount_post():
 async def scheduler():
     while True:
         await send_discount_post()
-        await asyncio.sleep(1800)  # 30 минут
+        await asyncio.sleep(180)  # 30 минут
 
 # Запуск бота
 async def main():
