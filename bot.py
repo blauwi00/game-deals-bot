@@ -50,7 +50,6 @@ def get_steam_deals():
                     price_new = game.get("final_price", 0) / 100
                     currency = game.get("currency", "USD")
                     link = f"https://store.steampowered.com/app/{game['id']}/"
-                    image = game.get("header_image", "")
 
                     # Проверяем, изменилась ли скидка
                     previous_discount = old_discounts.get(str(game["id"]), None)
@@ -61,7 +60,7 @@ def get_steam_deals():
                     new_discounts[str(game["id"])] = discount  # Сохраняем текущую скидку
 
                     deals.append(
-                        f"<a href='{image}'>{name}</a>\n"
+                        f"{name}\n"
                         f"{discount_text}\n"
                         f"{price_old} {currency} → {price_new} {currency}\n"
                         f"<a href='{link}'>Купить в Steam</a>"
@@ -87,8 +86,8 @@ async def send_discount_post():
         message = f"Время поста: {now}\n\nГорячие скидки в Steam!\n\n"
         message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
 
-        # Отправляем пост со скидками
-        await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=False)
+        # Отправляем пост со скидками (ОТКЛЮЧЕН предпросмотр ссылок)
+        await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=True)
 
         # Отправляем постер как отдельное изображение
         await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL)
