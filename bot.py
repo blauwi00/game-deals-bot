@@ -7,9 +7,11 @@ from aiogram import Bot
 from datetime import datetime
 
 # Данные бота
-TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
+TELEGRAM_BOT_TOKEN = "ТВОЙ_НОВЫЙ_ТОКЕН"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
 POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Прямая ссылка на постер
+MIN_DISCOUNT = 10  # Минимальный процент скидки для публикации
+MAX_GAMES = 10  # Сколько игр показывать в одном посте
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -29,81 +31,100 @@ def save_json(filename, data):
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Функция получения скидок из Steam API
-def get_steam_deals():
-    url = "https://store.steampowered.com/api/featuredcategories/"
+# Функция получения всех скидок из Steam API
+def get_all_steam_deals():
+    url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"  # Получаем список всех игр
     response = requests.get(url)
 
     if response.status_code == 200:
         data = response.json()
-        specials = data.get("specials", {}).get("items", [])
-        print(f"Найдено {len(specials)} товаров в разделе скидок.")
+        all_apps = data.get("applist", {}).get("apps", [])
+        print(f"Всего игр в Steam: {len(all_apps)}")
 
+        game_ids = [str(game["appid"]) for game in all_apps]
+        return game_ids[:5000]  # Ограничиваем выбор 5000 играми для скорости
+    else:
+        print(f"Ошибка Steam API: Код {response.status_code}")
+        return []
+
+# Функция получения детальных скидок
+def get_steam_deals():
+    game_ids = get_all_steam_deals()
+    if not game_ids:
+        return ["Не удалось получить список игр из Steam API."]
+
+    url = f"https://store.steampowered.com/api/appdetails?appids={','.join(game_ids)}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
         old_discounts = load_json(DISCOUNTS_FILE)
         last_posted_games = load_json(LAST_POSTED_FILE)
         new_discounts = {}
         deals = []
         selected_games = []
 
-        # Перемешиваем список игр
-        random.shuffle(specials)
+        for game_id, details in data.items():
+            if details.get("success"):
+                game_data = details.get("data", {})
+                if "price_overview" in game_data and "discount_percent" in game_data["price_overview"]:
+                    discount = game_data["price_overview"]["discount_percent"]
+                    if discount >= MIN_DISCOUNT:
+                        name = game_data.get("name", "Без названия")
+                        price_old = game_data["price_overview"].get("initial", 0) / 100
+                        price_new = game_data["price_overview"].get("final", 0) / 100
+                        currency = game_data["price_overview"].get("currency", "USD")
+                        link = f"https://store.steampowered.com/app/{game_id}/"
+                        image = game_data.get("header_image", POSTER_URL)
 
-        for game in specials:
-            if game.get("discounted", False):
-                game_id = str(game["id"])
-                discount = game.get("discount_percent", 0)
+                        # Проверяем прошлую скидку
+                        previous_discount = old_discounts.get(game_id, None)
+                        discount_text = f"-{discount}%"
+                        if previous_discount and previous_discount != discount:
+                            discount_text += f" (Ранее было -{previous_discount}%)"
 
-                # Игры не должны повторяться подряд
-                if discount > 0 and game_id not in last_posted_games:
-                    name = game.get("name", "Без названия")
-                    price_old = game.get("original_price", 0) / 100
-                    price_new = game.get("final_price", 0) / 100
-                    currency = game.get("currency", "USD")
-                    link = f"https://store.steampowered.com/app/{game['id']}/"
+                        # Дата окончания скидки
+                        discount_expiration = game_data.get("price_overview", {}).get("discount_expiration", None)
+                        if discount_expiration:
+                            expiration_date = datetime.utcfromtimestamp(discount_expiration).strftime("%d.%m.%Y")
+                            expiration_text = f"⏳ Скидка до {expiration_date}"
+                        else:
+                            expiration_text = "⏳ Дата окончания неизвестна"
 
-                    # Проверяем прошлую скидку
-                    previous_discount = old_discounts.get(game_id, None)
-                    discount_text = f"-{discount}%"
-                    if previous_discount and previous_discount != discount:
-                        discount_text += f" (Ранее было -{previous_discount}%)"
+                        # Доступные платформы
+                        platforms = []
+                        if game_data.get("platforms", {}).get("windows"):
+                            platforms.append("🖥 Windows")
+                        if game_data.get("platforms", {}).get("mac"):
+                            platforms.append("🍏 Mac")
+                        if game_data.get("platforms", {}).get("linux"):
+                            platforms.append("🐧 Linux")
+                        platforms_text = " | ".join(platforms) if platforms else "Платформа неизвестна"
 
-                    # Дата окончания скидки
-                    discount_expiration = game.get("discount_expiration", None)
-                    if discount_expiration:
-                        expiration_date = datetime.utcfromtimestamp(discount_expiration).strftime("%d.%m.%Y")
-                        expiration_text = f"⏳ Скидка до {expiration_date}"
-                    else:
-                        expiration_text = "⏳ Дата окончания неизвестна"
+                        # Проверяем, публиковали ли уже эту игру
+                        if game_id not in last_posted_games:
+                            new_discounts[game_id] = discount
+                            selected_games.append(game_id)
 
-                    # Доступные платформы
-                    platforms = []
-                    if game.get("windows_available"):
-                        platforms.append("🖥 Windows")
-                    if game.get("mac_available"):
-                        platforms.append("🍏 Mac")
-                    if game.get("linux_available"):
-                        platforms.append("🐧 Linux")
-                    platforms_text = " | ".join(platforms) if platforms else "Платформа неизвестна"
+                            deals.append(
+                                {
+                                    "name": name,
+                                    "discount": discount_text,
+                                    "price_old": price_old,
+                                    "price_new": price_new,
+                                    "currency": currency,
+                                    "platforms": platforms_text,
+                                    "expiration": expiration_text,
+                                    "link": link,
+                                    "image": image
+                                }
+                            )
 
-                    # Запоминаем новую скидку
-                    new_discounts[game_id] = discount
-                    selected_games.append(game_id)
-
-                    # Добавляем игру в список поста
-                    deals.append(
-                        f"<b>{name}</b>\n"
-                        f"{discount_text}\n"
-                        f"{price_old} {currency} → {price_new} {currency}\n"
-                        f"{platforms_text}\n"
-                        f"{expiration_text}\n"
-                        f"<a href='{link}'>🎮 Купить в Steam</a>"
-                    )
-
-            if len(deals) >= 5:  # Ограничиваем 5 играми в посте
-                break
+                        if len(deals) >= MAX_GAMES:
+                            break
 
         save_json(DISCOUNTS_FILE, new_discounts)  # Сохраняем скидки
-        save_json(LAST_POSTED_FILE, selected_games)  # Запоминаем, какие игры публиковали
+        save_json(LAST_POSTED_FILE, selected_games)  # Запоминаем опубликованные игры
         print(f"Итог: {len(deals)} игр прошло фильтр.")  
 
         return deals if deals else ["Скидок нет или API Steam не даёт данные."]
@@ -115,24 +136,31 @@ def get_steam_deals():
 # Функция отправки поста с постером в одном сообщении
 async def send_discount_post():
     deals = get_steam_deals()
-    if deals:
-        now = datetime.now().strftime("%H:%M")  # Время поста
-        message = f"<b>🔥 Горячие скидки в Steam!</b>\n\n"
-        message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
-        message += "\n\n📌 Подпишись, чтобы не пропустить новые скидки!"
-
-        # Отправляем пост со скидками и постером (в одном сообщении)
-        await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL, caption=message, parse_mode="HTML")
-    else:
+    if isinstance(deals, list) and isinstance(deals[0], str):
         print("Нет скидок для отправки!")
+        return
 
-# Функция тестового запуска (2 поста, затем стоп)
+    message = "<b>🔥 Горячие скидки в Steam!</b>\n\n"
+    for deal in deals:
+        message += f"<b>{deal['name']}</b>\n"
+        message += f"{deal['discount']}\n"
+        message += f"{deal['price_old']} {deal['currency']} → {deal['price_new']} {deal['currency']}\n"
+        message += f"{deal['platforms']}\n"
+        message += f"{deal['expiration']}\n"
+        message += f"<a href='{deal['link']}'>🎮 Купить в Steam</a>\n\n"
+
+    message += "📌 Подпишись, чтобы не пропустить новые скидки!"
+
+    # Отправляем пост со скидками и постером (в одном сообщении)
+    await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL, caption=message, parse_mode="HTML")
+
+# Запуск бота (2 поста, затем стоп)
 async def test_run():
     for _ in range(2):  # Отправит 2 поста и остановится
         await send_discount_post()
-        await asyncio.sleep(10)  # Ждём 10 секунд перед следующим постом (для тестов)
+        await asyncio.sleep(10)
 
-# Запуск бота (только на 2 поста)
+# Запуск
 async def main():
     await test_run()
     await bot.session.close()  # Закрываем клиентскую сессию
