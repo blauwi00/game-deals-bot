@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import ParseMode
 
 # 🔹 Задаём параметры бота
-TOKEN = "ТВОЙ_ТОКЕН_ТУТ"
+TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
 POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Твой постер
