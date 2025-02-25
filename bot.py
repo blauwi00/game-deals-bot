@@ -83,7 +83,7 @@ async def test_run(bot, chat_id):
 
 # Запуск бота
 async def main():
-    TELEGRAM_BOT_TOKEN = "ТОКЕН_БОТА"
+    TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
     TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
