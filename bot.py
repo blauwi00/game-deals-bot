@@ -7,7 +7,7 @@ from datetime import datetime
 import random
 
 # 🔑 Токен и канал
-TOKEN = "ТВОЙ_ТОКЕН"
+TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 # 🔍 API ссылки
