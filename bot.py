@@ -8,7 +8,7 @@ from datetime import datetime
 # Данные бота
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
-POSTER_URL = "URL_ТВОЕГО_ПОСТЕРА"  # Заменить на ссылку на постер
+POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Заменить на ссылку на постер
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
