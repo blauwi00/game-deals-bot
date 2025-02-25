@@ -9,7 +9,7 @@ TELEGRAM_CHANNEL_ID = "@gamehunttm"
 POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Ссылка на постер
 
 bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(bot)
+dp = Dispatcher(bot=bot)
 
 # Храним старые скидки, чтобы отслеживать изменения
 previous_deals = {}
