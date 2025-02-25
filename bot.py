@@ -1,9 +1,9 @@
-
 import requests
 import asyncio
 import json
 import os
-from aiogram import Bot, types
+import random
+from aiogram import Bot
 from datetime import datetime
 
 # Данные бота
@@ -15,6 +15,7 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # Файл для хранения старых скидок
 DISCOUNTS_FILE = "discounts.json"
+LAST_POSTED_FILE = "last_posted.json"  # Для хранения ID последних опубликованных игр
 
 # Функция загрузки старых скидок
 def load_old_discounts():
@@ -28,6 +29,18 @@ def save_discounts(discounts):
     with open(DISCOUNTS_FILE, "w", encoding="utf-8") as f:
         json.dump(discounts, f, ensure_ascii=False, indent=4)
 
+# Функция загрузки списка ранее опубликованных игр
+def load_last_posted():
+    if os.path.exists(LAST_POSTED_FILE):
+        with open(LAST_POSTED_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+# Функция сохранения списка опубликованных игр
+def save_last_posted(game_ids):
+    with open(LAST_POSTED_FILE, "w", encoding="utf-8") as f:
+        json.dump(game_ids, f, ensure_ascii=False, indent=4)
+
 # Функция получения скидок из Steam API
 def get_steam_deals():
     url = "https://store.steampowered.com/api/featuredcategories/"
@@ -39,13 +52,19 @@ def get_steam_deals():
         print(f"Найдено {len(specials)} товаров в разделе скидок.")
 
         old_discounts = load_old_discounts()
+        last_posted_games = load_last_posted()
         new_discounts = {}
         deals = []
+        selected_games = []
+
+        # Перемешиваем список игр, чтобы каждый раз выбирать случайные
+        random.shuffle(specials)
 
         for game in specials:
             if game.get("discounted", False):
+                game_id = str(game["id"])
                 discount = game.get("discount_percent", 0)
-                if discount > 0:  # Любая скидка
+                if discount > 0 and game_id not in last_posted_games:  # Игры не должны повторяться подряд
                     name = game.get("name", "Без названия")
                     price_old = game.get("original_price", 0) / 100
                     price_new = game.get("final_price", 0) / 100
@@ -53,12 +72,13 @@ def get_steam_deals():
                     link = f"https://store.steampowered.com/app/{game['id']}/"
 
                     # Проверяем, изменилась ли скидка
-                    previous_discount = old_discounts.get(str(game["id"]), None)
+                    previous_discount = old_discounts.get(game_id, None)
                     discount_text = f"-{discount}%"
                     if previous_discount and previous_discount != discount:
                         discount_text += f" (Ранее было -{previous_discount}%)"
 
-                    new_discounts[str(game["id"])] = discount  # Сохраняем текущую скидку
+                    new_discounts[game_id] = discount  # Сохраняем текущую скидку
+                    selected_games.append(game_id)
 
                     deals.append(
                         f"{name}\n"
@@ -67,10 +87,11 @@ def get_steam_deals():
                         f"<a href='{link}'>Купить в Steam</a>"
                     )
 
-            if len(deals) >= 5:  # Показываем 5 игр
+            if len(deals) >= 5:  # Ограничиваем до 5 игр в посте
                 break
 
         save_discounts(new_discounts)  # Сохраняем скидки
+        save_last_posted(selected_games)  # Запоминаем, какие игры публиковали
         print(f"Итог: {len(deals)} игр прошло фильтр.")  
 
         return deals if deals else ["Скидок нет или API Steam не даёт данные."]
@@ -79,15 +100,15 @@ def get_steam_deals():
         print(f"Ошибка Steam API: Код {response.status_code}")
         return ["Ошибка при получении данных из Steam."]
 
-# Функция отправки поста с картинкой
+# Функция отправки поста с постером в одном сообщении
 async def send_discount_post():
     deals = get_steam_deals()
     if deals:
         now = datetime.now().strftime("%H:%M")  # Добавляем текущее время в пост
-        message = f"Время поста: {now}\n\n🔥 Горячие скидки в Steam!\n\n"
+message = f"Время поста: {now}\n\n🔥 Горячие скидки в Steam!\n\n"
         message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
 
-        # Отправляем пост со скидками + постером
+        # Отправляем пост со скидками и постером (в одном сообщении)
         await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL, caption=message, parse_mode="HTML")
     else:
         print("Нет скидок для отправки!")
@@ -101,5 +122,6 @@ async def test_run():
 # Запуск бота (только на 2 поста)
 async def main():
     await test_run()
+    await bot.session.close()  # Закрываем клиентскую сессию, чтобы избежать утечек
 
 asyncio.run(main())
