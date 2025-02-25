@@ -8,7 +8,7 @@ from datetime import datetime
 # Данные бота
 TELEGRAM_BOT_TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"  # Или "-100XXXXXXXXXX" для приватного канала
-POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Заменить на ссылку на постер
+POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Прямая ссылка на постер
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -79,7 +79,7 @@ def get_steam_deals():
         print(f"Ошибка Steam API: Код {response.status_code}")
         return ["Ошибка при получении данных из Steam."]
 
-# Функция отправки поста со скидками
+# Функция отправки поста со скидками + постера
 async def send_discount_post():
     deals = get_steam_deals()
     if deals:
@@ -87,10 +87,11 @@ async def send_discount_post():
         message = f"Время поста: {now}\n\nГорячие скидки в Steam!\n\n"
         message += "\n\n".join(deals)  # Объединяем 5 скидок в один пост
 
-        # Добавляем постер в конце
-        message += f"\n\n<a href='{POSTER_URL}'></a>"
-
+        # Отправляем пост со скидками
         await bot.send_message(TELEGRAM_CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=False)
+
+        # Отправляем постер как отдельное изображение
+        await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=POSTER_URL)
     else:
         print("Нет скидок для отправки!")
 
