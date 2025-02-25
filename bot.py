@@ -4,7 +4,7 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.types import ParseMode
 
-TOKEN = "ТВОЙ_ТОКЕН"
+TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 POSTER_URL = "https://i.imgur.com/AhzG3kO.jpeg"  # Ссылка на постер
 
