@@ -6,20 +6,18 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime
 import random
 
-# Твой токен и ID канала
-TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
+# 🔑 Токен и канал
+TOKEN = "ТВОЙ_ТОКЕН"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
-# Настраиваем логирование
-logging.basicConfig(level=logging.INFO)
+# 🔍 API ссылки
+STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
+EPIC_API_URL = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions"
 
-# Создаем бота и диспетчер
+# 🎯 Логирование
+logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot)
-
-# API URL для Steam и SteamDB
-STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
-STEAMDB_API_URL = "https://steamdb.info/api/GetPriceOverview/"
 
 # 📌 Функция получения скидок с Steam API
 async def get_steam_discounts():
@@ -30,81 +28,97 @@ async def get_steam_discounts():
                 return []
             data = await response.json()
             if "specials" not in data:
-                logging.warning("Steam API не вернул список скидок!")
                 return []
 
             discounts = []
             for game in data["specials"]["items"]:
-                if game.get("discount_percent", 0) > 0:  # Если есть скидка
+                if game.get("discount_percent", 0) > 0:
                     discounts.append({
                         "name": game["name"],
                         "discount": game["discount_percent"],
                         "price_old": game["original_price"] / 100 if game["original_price"] else "Не указана",
                         "price_new": game["final_price"] / 100 if game["final_price"] else "Бесплатно",
                         "link": f"https://store.steampowered.com/app/{game['id']}",
+                        "image": game.get("header_image", ""),
                         "source": "Steam"
                     })
             return discounts
 
-# 📌 Функция получения скидок с SteamDB API
-async def get_steamdb_discounts(app_id):
+# 📌 Функция парсинга скидок с Epic Games Store API
+async def get_epic_discounts():
     async with aiohttp.ClientSession() as session:
-        params = {"appid": app_id}
-        async with session.get(STEAMDB_API_URL, params=params) as response:
+        async with session.get(EPIC_API_URL) as response:
             if response.status != 200:
-                logging.error(f"Ошибка SteamDB API: {response.status}")
-                return None
+                logging.error(f"Ошибка Epic Games API: {response.status}")
+                return []
             data = await response.json()
-            if "data" not in data:
-                return None
+            games = data.get("data", {}).get("Catalog", {}).get("searchStore", {}).get("elements", [])
+            
+            discounts = []
+            for game in games:
+                title = game.get("title", "Неизвестная игра")
+                price_info = game.get("price", {}).get("totalPrice", {})
+                discount = price_info.get("discountPercentage", 0)
 
-            return {
-                "regions": data["data"]["prices"],
-                "source": "SteamDB"
-            }
+                if discount > 0:  # Только игры со скидками
+                    price_old = price_info.get("originalPrice", 0) / 100
+                    price_new = price_info.get("discountPrice", 0) / 100
+                    game_link = f"https://store.epicgames.com/p/{game['productSlug']}"
+                    image = game.get("keyImages", [{}])[0].get("url", "")
+
+                    discounts.append({
+                        "name": title,
+                        "discount": discount,
+                        "price_old": price_old,
+                        "price_new": price_new,
+                        "link": game_link,
+                        "image": image,
+                        "source": "Epic Games"
+                    })
+            return discounts
 
 # 📌 Генерация сообщения со скидками
 async def generate_discount_message():
     steam_discounts = await get_steam_discounts()
-    if not steam_discounts:
-        return "🚫 Нет актуальных скидок."
+    epic_discounts = await get_epic_discounts()
+    
+    all_discounts = steam_discounts + epic_discounts
+    if not all_discounts:
+        return "🚫 Нет актуальных скидок.", None, None
 
-    # Выбираем 5 случайных скидок для поста
-    selected_deals = random.sample(steam_discounts, min(5, len(steam_discounts)))
+    # Выбираем 5 случайных скидок
+    selected_deals = random.sample(all_discounts, min(5, len(all_discounts)))
 
-    message = "<b>🔥 Горячие скидки в Steam:</b>\n\n"
-    buttons = InlineKeyboardMarkup(row_width=2)
+    message = "<b>🔥 Горячие скидки в Steam и Epic Games:</b>\n\n"
+    buttons = InlineKeyboardMarkup(row_width=1)
 
     for deal in selected_deals:
-        steamdb_info = await get_steamdb_discounts(deal["link"].split("/")[-1])
         price_info = f"<s>{deal['price_old']} USD</s> ➡ {deal['price_new']} USD"
-        region_prices = ""
-
-        if steamdb_info:
-            for region, price in steamdb_info["regions"].items():
-                region_prices += f"\n🇦🇷 {region}: {price} USD"
-
         message += (
             f"🎮 <b>{deal['name']}</b>\n"
             f"💲 {price_info}\n"
             f"🔥 Скидка: {deal['discount']}%\n"
-            f"🗺 Региональные цены:{region_prices}\n"
             f"📌 Источник: {deal['source']}\n\n"
         )
 
-        # Кнопки
+        # Кнопки "Купить" и "Сравнить цены"
         buttons.add(
-            InlineKeyboardButton(f"🛒 Купить за {deal['price_new']} USD", url=deal["link"]),
-            InlineKeyboardButton("📊 Сравнить цены", url=f"https://steamdb.info/app/{deal['link'].split('/')[-1]}/")
+            InlineKeyboardButton("🛒 Купить в магазине", url=deal["link"]),
+            InlineKeyboardButton("📊 Сравнить цены", url=f"https://gg.deals/games/?title={deal['name'].replace(' ', '+')}")
         )
 
-    return message, buttons
+    # Используем изображение первой игры
+    post_image = selected_deals[0]["image"] if selected_deals[0]["image"] else "https://i.imgur.com/AhzG3kO.jpeg"
+
+    return message, buttons, post_image
 
 # 📌 Функция отправки поста
 async def send_discount_post():
-    message, buttons = await generate_discount_message()
-    await bot.send_message(TELEGRAM_CHANNEL_ID, message, reply_markup=buttons)
-    await bot.send_photo(TELEGRAM_CHANNEL_ID, photo="https://i.imgur.com/AhzG3kO.jpeg")  # Постер
+    message, buttons, post_image = await generate_discount_message()
+    if not message:
+        return
+
+    await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=post_image, caption=message, reply_markup=buttons)
 
 # 📌 Планировщик постов (раз в 3 минуты)
 async def scheduler():
