@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher, types  # type: ignore
 import random
 
 # 🔑 Токен и канал
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 # 🔍 API ссылки
