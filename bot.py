@@ -1,19 +1,20 @@
 import asyncio
-import aiohttp
+import aiohttp  # type: ignore
 import logging
-from aiogram import Bot, Dispatcher, types
-from datetime import datetime
+import json
+import os
+from aiogram import Bot, Dispatcher, types  # type: ignore
 import random
 
 # 🔑 Токен и канал
-TOKEN = "7934109371:AAGZnZbBmLaw2Esap1vAEcI7Pd0YaJ6xQgc"
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
 TELEGRAM_CHANNEL_ID = "@gamehunttm"
 
 # 🔍 API ссылки
 STEAM_API_URL = "https://store.steampowered.com/api/featuredcategories/"
 EPIC_API_URL = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions"
 
-# 📌 Постер для каждого поста
+# 📌 Постер
 POSTER_IMAGE = "https://i.imgur.com/AhzG3kO.jpeg"
 
 # 🎯 Логирование
@@ -21,7 +22,28 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot)
 
-# 📌 Функция получения скидок с Steam API
+# 📌 Файл для хранения ID отправленных игр
+SENT_GAMES_FILE = "sent_games.json"
+
+# 📌 Уникальный список уже отправленных игр
+sent_games = set()
+
+def load_sent_games():
+    """Загрузка списка отправленных игр из файла."""
+    global sent_games
+    if os.path.exists(SENT_GAMES_FILE):
+        try:
+            with open(SENT_GAMES_FILE, "r", encoding="utf-8") as file:
+                sent_games = set(json.load(file))
+        except (json.JSONDecodeError, IOError):
+            logging.error("Ошибка при загрузке файла с отправленными играми.")
+
+def save_sent_games():
+    """Сохранение списка отправленных игр в файл."""
+    with open(SENT_GAMES_FILE, "w", encoding="utf-8") as file:
+        json.dump(list(sent_games), file)
+
+# 📌 Получение скидок в Steam
 async def get_steam_discounts():
     async with aiohttp.ClientSession() as session:
         async with session.get(STEAM_API_URL) as response:
@@ -34,18 +56,22 @@ async def get_steam_discounts():
 
             discounts = []
             for game in data["specials"]["items"]:
+                game_id = str(game["id"])
+                if game_id in sent_games:
+                    continue
                 if game.get("discount_percent", 0) > 0:
                     discounts.append({
+                        "id": game_id,
                         "name": game["name"],
                         "discount": game["discount_percent"],
                         "price_old": game["original_price"] / 100 if game["original_price"] else "Не указана",
                         "price_new": game["final_price"] / 100 if game["final_price"] else "Бесплатно",
-                        "link": f"https://store.steampowered.com/app/{game['id']}",
+                        "link": f"https://store.steampowered.com/app/{game_id}",
                         "source": "Steam"
                     })
             return discounts
 
-# 📌 Функция получения скидок с Epic Games Store API
+# 📌 Получение скидок в Epic Games
 async def get_epic_discounts():
     async with aiohttp.ClientSession() as session:
         async with session.get(EPIC_API_URL) as response:
@@ -57,16 +83,18 @@ async def get_epic_discounts():
             
             discounts = []
             for game in games:
+                game_id = game.get("id", game.get("productSlug", ""))
+                if game_id in sent_games:
+                    continue
                 title = game.get("title", "Неизвестная игра")
                 price_info = game.get("price", {}).get("totalPrice", {})
                 discount = price_info.get("discountPercentage", 0)
-
-                if discount > 0:  # Только игры со скидками
+                if discount > 0:
                     price_old = price_info.get("originalPrice", 0) / 100
                     price_new = price_info.get("discountPrice", 0) / 100
                     game_link = f"https://store.epicgames.com/p/{game['productSlug']}"
-
                     discounts.append({
+                        "id": game_id,
                         "name": title,
                         "discount": discount,
                         "price_old": price_old,
@@ -85,13 +113,14 @@ async def generate_discount_message():
     if not all_discounts:
         return "🚫 Нет актуальных скидок.", None
 
-    # Выбираем 5 случайных скидок
     selected_deals = random.sample(all_discounts, min(5, len(all_discounts)))
-
-    message = "<b>🔥 Горячие скидки в Steam и Epic Games:</b>\n\n"
-
     for deal in selected_deals:
-        price_info = f"<s>{deal['price_old']} USD</s> ➡ {deal['price_new']} USD"
+        sent_games.add(deal["id"])
+    save_sent_games()
+    
+    message = "<b>🔥 Горящие скидки в Steam и Epic Games:</b>\n\n"
+    for deal in selected_deals:
+        price_info = f"<s>{deal['price_old']} USD</s> ➞ {deal['price_new']} USD"
         message += (
             f"🎮 <b>{deal['name']}</b>\n"
             f"💲 {price_info}\n"
@@ -99,25 +128,23 @@ async def generate_discount_message():
             f"📌 Источник: {deal['source']}\n"
             f"🔗 <a href='{deal['link']}'>Купить в магазине</a>\n\n"
         )
-
     return message, POSTER_IMAGE
 
-# 📌 Функция отправки поста
+# 📌 Отправка поста
 async def send_discount_post():
     message, post_image = await generate_discount_message()
-    if not message:
-        return
+    if message:
+        await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=post_image, caption=message)
 
-    await bot.send_photo(TELEGRAM_CHANNEL_ID, photo=post_image, caption=message)
-
-# 📌 Планировщик постов (раз в 3 минуты)
+# 📌 Планировщик постов
 async def scheduler():
     while True:
         await send_discount_post()
-        await asyncio.sleep(180)  # 3 минуты
+        await asyncio.sleep(180)
 
 # 📌 Запуск бота
 async def main():
+    load_sent_games()
     asyncio.create_task(scheduler())
     await dp.start_polling()
 
